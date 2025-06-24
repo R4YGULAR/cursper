@@ -4,6 +4,8 @@
 
   let currentModel = $state("base");
   let availableModels = $state<string[]>([]);
+  let downloadedModels = $state<string[]>([]);
+  let downloadingModels = $state<Record<string, number>>({});
   let isRecording = $state(false);
   let backendStatus = $state("checking");
   let statusMessage = $state("Initializing...");
@@ -34,6 +36,10 @@
     try {
       const models = await invoke<string[]>("get_available_models");
       availableModels = models;
+      
+      // For demo purposes, mark base and tiny as already downloaded
+      downloadedModels = ["tiny", "base"];
+      
       backendStatus = "connected";
       statusMessage = "Backend connected ✅";
     } catch (error) {
@@ -44,13 +50,55 @@
   }
 
   async function setModel(model: string) {
+    // Check if model is already downloaded
+    if (downloadedModels.includes(model)) {
+      try {
+        await invoke("set_whisper_model", { model });
+        currentModel = model;
+        statusMessage = `Model set to ${model} ✅`;
+      } catch (error) {
+        statusMessage = `Failed to set model: ${error}`;
+        console.error("Model set failed:", error);
+      }
+      return;
+    }
+
+    // Start download if not downloaded
+    if (!downloadingModels[model]) {
+      await downloadModel(model);
+    }
+  }
+
+  async function downloadModel(model: string) {
     try {
-      await invoke("set_whisper_model", { model });
-      currentModel = model;
-      statusMessage = `Model set to ${model} ✅`;
+      statusMessage = `Starting download of ${model} model...`;
+      downloadingModels[model] = 0;
+      
+      // Simulate download progress (in a real implementation, this would come from the backend)
+      const progressInterval = setInterval(() => {
+        if (downloadingModels[model] < 100) {
+          downloadingModels[model] += Math.random() * 10;
+          if (downloadingModels[model] > 100) {
+            downloadingModels[model] = 100;
+          }
+        } else {
+          clearInterval(progressInterval);
+          // Download complete
+          downloadedModels.push(model);
+          delete downloadingModels[model];
+          
+          // Set as current model
+          invoke("set_whisper_model", { model }).then(() => {
+            currentModel = model;
+            statusMessage = `${model} model downloaded and activated ✅`;
+          });
+        }
+      }, 200);
+      
     } catch (error) {
-      statusMessage = `Failed to set model: ${error}`;
-      console.error("Model set failed:", error);
+      delete downloadingModels[model];
+      statusMessage = `Failed to download ${model}: ${error}`;
+      console.error("Model download failed:", error);
     }
   }
 
@@ -189,18 +237,34 @@
     
     <div class="model-grid">
       {#each availableModels as model}
+        {@const isDownloading = downloadingModels[model] !== undefined}
+        {@const isDownloaded = downloadedModels.includes(model)}
+        {@const downloadProgress = downloadingModels[model] || 0}
+        
         <button 
-          class="model-button {currentModel === model ? 'active' : ''}"
+          class="model-button {currentModel === model ? 'active' : ''} {isDownloading ? 'downloading' : ''}"
           onclick={() => setModel(model)}
-          disabled={backendStatus !== 'connected'}
+          disabled={backendStatus !== 'connected' || isDownloading}
         >
           <span class="model-name">{model}</span>
-          <span class="model-size">
-            {model === 'tiny' ? '39MB' : 
-             model === 'base' ? '74MB' :
-             model === 'small' ? '244MB' :
-             model === 'medium' ? '769MB' : '1.5GB'}
-          </span>
+          
+          {#if isDownloading}
+            <span class="download-status">Downloading...</span>
+            <span class="download-progress">{Math.round(downloadProgress)}%</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {downloadProgress}%"></div>
+            </div>
+          {:else}
+            <span class="model-size">
+              {model === 'tiny' ? '39MB' : 
+               model === 'base' ? '74MB' :
+               model === 'small' ? '244MB' :
+               model === 'medium' ? '769MB' : '1.5GB'}
+            </span>
+            {#if isDownloaded}
+              <span class="downloaded-indicator">✓ Downloaded</span>
+            {/if}
+          {/if}
         </button>
       {/each}
     </div>
@@ -517,6 +581,9 @@ pip install -r requirements.txt</code></pre>
     gap: 3px;
     font-family: inherit;
     color: #ffffff;
+    position: relative;
+    min-height: 70px;
+    justify-content: center;
   }
 
   .model-button:hover:not(:disabled) {
@@ -530,8 +597,13 @@ pip install -r requirements.txt</code></pre>
     color: #dbeafe;
   }
 
+  .model-button.downloading {
+    border-color: #f59e0b;
+    background: #1a1a1a;
+  }
+
   .model-button:disabled {
-    opacity: 0.5;
+    opacity: 0.7;
     cursor: not-allowed;
   }
 
@@ -544,6 +616,43 @@ pip install -r requirements.txt</code></pre>
   .model-size {
     font-size: 0.7rem;
     color: #a1a1aa;
+  }
+
+  .download-status {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    font-weight: 500;
+    margin: 2px 0;
+  }
+
+  .download-progress {
+    font-size: 0.8rem;
+    color: #ffffff;
+    font-weight: 600;
+    margin: 1px 0;
+  }
+
+  .downloaded-indicator {
+    font-size: 0.7rem;
+    color: #10b981;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #404040;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    border-radius: 2px;
+    transition: width 0.3s ease;
   }
 
   .record-button {

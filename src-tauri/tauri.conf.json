@@ -12,16 +12,19 @@
   "app": {
     "windows": [
       {
-        "title": "Cursper",
+        "title": "Cursper Settings",
         "width": 450,
         "height": 600,
         "resizable": false,
         "center": true,
         "decorations": true,
         "alwaysOnTop": false,
-        "skipTaskbar": false,
+        "skipTaskbar": true,
         "url": "/tray",
-        "visible": false
+        "visible": false,
+        "closable": true,
+        "minimizable": false,
+        "maximizable": false
       },
       {
         "label": "overlay",
@@ -56,6 +59,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "Info.plist": "Info.plist"
+    }
   }
 }

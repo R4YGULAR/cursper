@@ -137,28 +137,35 @@
   </div>
 
   <div class="message-card">
-    <div class="icon">🚀</div>
-    <h2>Running in System Tray</h2>
-    <p>Cursper is now running in your system tray. Look for the microphone icon in your taskbar.</p>
+    <div class="icon">👻</div>
+    <h2>Background App Mode</h2>
+    <p>Cursper is running invisibly in the background. The app won't appear in your dock - it's purely a system tray application.</p>
     
     <div class="features">
       <div class="feature">
+        <span class="feature-icon">🔍</span>
+        <span>Look for the microphone icon in your system tray/menu bar</span>
+      </div>
+      <div class="feature">
         <span class="feature-icon">⌨️</span>
-        <span>Use <kbd>Option+Space</kbd> to start/stop recording</span>
+        <span>Use <kbd>Option+Space</kbd> to start/stop recording globally</span>
       </div>
       <div class="feature">
-        <span class="feature-icon">⚙️</span>
-        <span>Right-click the tray icon for settings</span>
+        <span class="feature-icon">🖱️</span>
+        <span>Click the tray icon to open settings</span>
       </div>
       <div class="feature">
-        <span class="feature-icon">🎯</span>
-        <span>Double-click to open settings window</span>
+        <span class="feature-icon">❌</span>
+        <span>Use tray menu → Quit to exit the app</span>
       </div>
     </div>
     
     <div class="actions">
       <button class="settings-button" onclick={() => window.location.href = '/tray'}>
         ⚙️ Open Settings
+      </button>
+      <button class="hide-button" onclick={() => window.close()}>
+        👻 Hide Window
       </button>
     </div>
   </div>
@@ -281,26 +288,41 @@
     margin-top: 24px;
     display: flex;
     justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
 
-  .settings-button {
-    background: #3b82f6;
-    color: white;
+  .settings-button, .hide-button {
     border: none;
     border-radius: 8px;
-    padding: 12px 24px;
-    font-size: 1rem;
+    padding: 12px 20px;
+    font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: inherit;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .settings-button {
+    background: #3b82f6;
+    color: white;
   }
 
   .settings-button:hover {
     background: #2563eb;
+    transform: translateY(-1px);
+  }
+
+  .hide-button {
+    background: #6b7280;
+    color: white;
+  }
+
+  .hide-button:hover {
+    background: #4b5563;
     transform: translateY(-1px);
   }
 </style>
