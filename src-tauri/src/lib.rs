@@ -19,6 +19,13 @@ use std::process::Command as SystemCommand;
 #[cfg(target_os = "windows")]
 use std::process::Command as SystemCommand;
 
+// Global recording control
+static RECORDING_CONTROL: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
+
+fn get_recording_control() -> Arc<Mutex<bool>> {
+    RECORDING_CONTROL.get_or_init(|| Arc::new(Mutex::new(false))).clone()
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CursorPosition {
     x: i32,
@@ -39,7 +46,7 @@ impl Default for AppState {
         Self {
             is_recording: false,
             current_model: "base".to_string(),
-            current_shortcut: "Cmd+Shift+Space".to_string(),
+            current_shortcut: "Option+Space".to_string(),
             shortcuts: HashMap::new(),
             backend_url: "http://127.0.0.1:8788".to_string(),
         }
@@ -324,21 +331,41 @@ async fn record_audio_cpal() -> Result<Vec<u8>, String> {
     }.map_err(|e| format!("Failed to build input stream: {}", e))?;
     
     // Start recording
-    println!("🎤 Starting audio recording for 3 seconds...");
+    println!("🎤 Starting audio recording... (will record until stopped or max 30 seconds)");
     stream.play().map_err(|e| format!("Failed to start audio stream: {}", e))?;
     
-    // Collect audio data for 3 seconds
+    // Collect audio data until recording is stopped or max duration reached
     let mut all_audio_data = Vec::new();
     let start_time = std::time::Instant::now();
-    let recording_duration = Duration::from_secs(3);
+    let max_recording_duration = Duration::from_secs(30); // Maximum 30 seconds to prevent infinite recording
     
-    while start_time.elapsed() < recording_duration {
+    // Get the global recording control
+    let recording_control = get_recording_control();
+    
+    // Set recording state to true at the start
+    {
+        let mut should_record = recording_control.lock().unwrap();
+        *should_record = true;
+    }
+    
+    let recording_check_interval = Duration::from_millis(50); // Check more frequently
+    
+    while start_time.elapsed() < max_recording_duration {
+        // Check if we should stop recording
+        {
+            let should_record = recording_control.lock().unwrap();
+            if !*should_record {
+                println!("🛑 Recording stopped by user input");
+                break;
+            }
+        }
+        
         match rx.try_recv() {
             Ok(data) => {
                 all_audio_data.extend(data);
             },
             Err(mpsc::TryRecvError::Empty) => {
-                thread::sleep(Duration::from_millis(10));
+                thread::sleep(recording_check_interval);
             },
             Err(mpsc::TryRecvError::Disconnected) => {
                 break;
@@ -348,7 +375,10 @@ async fn record_audio_cpal() -> Result<Vec<u8>, String> {
     
     // Stop the stream
     drop(stream);
-    println!("🎤 Audio recording completed. Collected {} samples", all_audio_data.len());
+    
+    let recording_time = start_time.elapsed();
+    println!("🎤 Audio recording completed. Recorded for {:.2} seconds, collected {} samples", 
+             recording_time.as_secs_f64(), all_audio_data.len());
     
     if all_audio_data.is_empty() {
         return Err("No audio data recorded".to_string());
@@ -389,8 +419,6 @@ fn convert_to_wav(samples: &[f32], sample_rate: u32, channels: u16) -> Result<Ve
     
     Ok(cursor.into_inner())
 }
-
-
 
 // Type text at cursor position using platform-specific APIs
 #[tauri::command]
@@ -628,14 +656,26 @@ fn parse_shortcut(shortcut_str: &str) -> Result<Shortcut, String> {
                 modifiers |= Modifiers::SHIFT;
                 println!("✅ Added SHIFT modifier");
             },
-            "Alt" => {
+            "Alt" | "Option" | "RightAlt" | "RAlt" | "LeftAlt" | "LAlt" | "RightOption" | "ROption" | "LeftOption" | "LOption" => {
                 modifiers |= Modifiers::ALT;
-                println!("✅ Added ALT modifier");
+                println!("✅ Added ALT (Option) modifier via {}", trimmed_part);
             },
             "Space" => {
                 key_code = Some(Code::Space);
                 println!("✅ Set key code to Space");
             },
+            "F1" => key_code = Some(Code::F1),
+            "F2" => key_code = Some(Code::F2),
+            "F3" => key_code = Some(Code::F3),
+            "F4" => key_code = Some(Code::F4),
+            "F5" => key_code = Some(Code::F5),
+            "F6" => key_code = Some(Code::F6),
+            "F7" => key_code = Some(Code::F7),
+            "F8" => key_code = Some(Code::F8),
+            "F9" => key_code = Some(Code::F9),
+            "F10" => key_code = Some(Code::F10),
+            "F11" => key_code = Some(Code::F11),
+            "F12" => key_code = Some(Code::F12),
             "A" => key_code = Some(Code::KeyA),
             "B" => key_code = Some(Code::KeyB),
             "C" => key_code = Some(Code::KeyC),
@@ -651,7 +691,13 @@ fn parse_shortcut(shortcut_str: &str) -> Result<Shortcut, String> {
     match key_code {
         Some(code) => {
             println!("✅ Shortcut parsed successfully - Modifiers: {:?}, Key: {:?}", modifiers, code);
-            Ok(Shortcut::new(Some(modifiers), code))
+            // If no modifiers are set, pass None instead of empty modifiers
+            let modifier_option = if modifiers.is_empty() { 
+                None 
+            } else { 
+                Some(modifiers) 
+            };
+            Ok(Shortcut::new(modifier_option, code))
         },
         None => {
             let error = "No key code found in shortcut".to_string();
@@ -724,7 +770,7 @@ fn setup_shortcuts(app: &AppHandle, state: AppStateType) -> Result<(), String> {
         let app_handle_clone = app_handle.clone();
         let state_clone = state_clone.clone();
         
-        println!("🎯 GLOBAL SHORTCUT TRIGGERED! Cmd+Shift+Space pressed");
+        println!("🎯 GLOBAL SHORTCUT TRIGGERED! Option+Space pressed");
         
         // Handle shortcut press in async context
         tauri::async_runtime::spawn(async move {
@@ -747,13 +793,25 @@ fn setup_shortcuts(app: &AppHandle, state: AppStateType) -> Result<(), String> {
             
             if is_recording {
                 println!("🛑 STOPPING RECORDING...");
-                // Stop recording and transcribe
+                
+                // Signal the recording to stop
+                {
+                    let recording_control = get_recording_control();
+                    let mut should_record = recording_control.lock().unwrap();
+                    *should_record = false;
+                    println!("✅ Recording control signal set to false");
+                }
+                
+                // Update app state
                 let backend_url = {
                     let mut app_state = state_clone.lock().unwrap();
                     app_state.is_recording = false;
-                    println!("✅ Recording state set to false");
+                    println!("✅ App recording state set to false");
                     app_state.backend_url.clone()
                 };
+                
+                // Give a moment for the recording to stop gracefully
+                tokio::time::sleep(Duration::from_millis(100)).await;
                 
                 // Call actual transcription function
                 println!("🎤 Starting transcription process...");
@@ -767,7 +825,7 @@ fn setup_shortcuts(app: &AppHandle, state: AppStateType) -> Result<(), String> {
                     Err(e) => {
                         println!("❌ Transcription failed: {}", e);
                         println!("🔄 Using fallback text");
-                        "Transcription failed - audio recording not yet implemented".to_string()
+                        "Transcription failed".to_string()
                     }
                 };
                 
@@ -778,18 +836,32 @@ fn setup_shortcuts(app: &AppHandle, state: AppStateType) -> Result<(), String> {
                     Err(e) => println!("❌ Failed to hide overlay: {}", e),
                 }
                 
-                println!("⌨️  Starting to type text...");
-                match type_text(transcribed_text.clone()).await {
-                    Ok(_) => println!("✅ Text typed successfully: '{}'", transcribed_text),
-                    Err(e) => println!("❌ Failed to type text: {}", e),
+                // Only type text if it's not empty and not an error message
+                if !transcribed_text.trim().is_empty() && !transcribed_text.contains("failed") {
+                    println!("⌨️  Starting to type text...");
+                    match type_text(transcribed_text.clone()).await {
+                        Ok(_) => println!("✅ Text typed successfully: '{}'", transcribed_text),
+                        Err(e) => println!("❌ Failed to type text: {}", e),
+                    }
+                } else {
+                    println!("⚠️ Skipping text typing due to empty or error transcription");
                 }
             } else {
                 println!("🎙️ STARTING RECORDING...");
+                
                 // Start recording
                 {
                     let mut app_state = state_clone.lock().unwrap();
                     app_state.is_recording = true;
-                    println!("✅ Recording state set to true");
+                    println!("✅ App recording state set to true");
+                }
+                
+                // Reset recording control to allow new recording
+                {
+                    let recording_control = get_recording_control();
+                    let mut should_record = recording_control.lock().unwrap();
+                    *should_record = true;
+                    println!("✅ Recording control signal set to true");
                 }
                 
                 // Show overlay
@@ -798,6 +870,19 @@ fn setup_shortcuts(app: &AppHandle, state: AppStateType) -> Result<(), String> {
                     Ok(_) => println!("✅ Overlay shown successfully"),
                     Err(e) => println!("❌ Failed to show overlay: {}", e),
                 }
+                
+                // Start the actual recording process in a separate task
+                let backend_url = {
+                    let app_state = state_clone.lock().unwrap();
+                    app_state.backend_url.clone()
+                };
+                
+                tokio::spawn(async move {
+                    println!("🎤 Starting background recording task...");
+                    // This will run until the recording control is set to false
+                    let _result = stop_recording_and_transcribe_internal(backend_url).await;
+                    println!("🎤 Background recording task completed");
+                });
             }
             
             println!("🎉 Shortcut handler completed successfully");

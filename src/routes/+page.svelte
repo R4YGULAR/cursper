@@ -8,7 +8,7 @@
   let backendStatus = $state("checking");
   let statusMessage = $state("Initializing...");
   let currentPlatform = $state("unknown");
-  let currentShortcut = $state("CmdOrCtrl+Shift+Space");
+  let currentShortcut = $state("Option+Space");
   let isEditingShortcut = $state(false);
   let tempShortcut = $state("");
 
@@ -111,13 +111,13 @@
       const userAgent = navigator.userAgent.toLowerCase();
       if (userAgent.includes('mac')) {
         currentPlatform = "macos";
-        currentShortcut = "Cmd+Shift+Space";
+        currentShortcut = "Option+Space";
       } else if (userAgent.includes('win')) {
         currentPlatform = "windows";
-        currentShortcut = "Ctrl+Shift+Space";
+        currentShortcut = "Alt+Space";
       } else {
         currentPlatform = "linux";
-        currentShortcut = "Ctrl+Shift+Space";
+        currentShortcut = "Alt+Space";
       }
     }
 
@@ -161,7 +161,7 @@
           <input 
             class="shortcut-input"
             bind:value={tempShortcut}
-            placeholder="e.g., {currentPlatform === 'macos' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space'}"
+            placeholder="e.g., {currentPlatform === 'macos' ? 'Option+Space' : 'Alt+Space'}, F5, or Cmd+Shift+V"
           />
           <div class="shortcut-buttons">
             <button class="save-button" onclick={saveShortcut}>Save</button>
