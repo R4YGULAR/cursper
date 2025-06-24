@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main",
+    "overlay"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size", 
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-cursor-position",
+    "opener:allow-open-url",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister", 
+    "global-shortcut:allow-is-registered",
+    "http:default"
+  ]
+}
