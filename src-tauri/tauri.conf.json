@@ -12,14 +12,16 @@
   "app": {
     "windows": [
       {
-        "title": "Cursper Settings",
-        "width": 400,
-        "height": 300,
+        "title": "Cursper",
+        "width": 450,
+        "height": 600,
         "resizable": false,
         "center": true,
         "decorations": true,
         "alwaysOnTop": false,
-        "skipTaskbar": false
+        "skipTaskbar": false,
+        "url": "/tray",
+        "visible": false
       },
       {
         "label": "overlay",
@@ -35,6 +37,12 @@
         "visible": false
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false,
+      "tooltip": "Cursper - Voice to Text"
+    },
     "security": {
       "csp": null
     }

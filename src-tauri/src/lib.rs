@@ -1,5 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}};
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, GlobalShortcutExt};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -949,6 +949,131 @@ async fn test_global_shortcut_system() -> Result<(), String> {
     Ok(())
 }
 
+// Open settings window from tray
+#[tauri::command]
+async fn open_settings(app_handle: AppHandle) -> Result<(), String> {
+    show_settings_window(&app_handle)
+}
+
+// Create system tray with menu
+fn setup_system_tray(app: &AppHandle) -> Result<(), tauri::Error> {
+    let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let start_backend_i = MenuItem::with_id(app, "start_backend", "Start Backend", true, None::<&str>)?;
+    let test_recording_i = MenuItem::with_id(app, "test_recording", "Test Recording", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    
+    let menu = Menu::with_items(app, &[
+        &settings_i,
+        &PredefinedMenuItem::separator(app)?,
+        &start_backend_i,
+        &test_recording_i,
+        &PredefinedMenuItem::separator(app)?,
+        &quit_i,
+    ])?;
+
+    let _tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .menu_on_left_click(false)
+        .on_menu_event(move |app, event| {
+            match event.id().as_ref() {
+                "settings" => {
+                    println!("⚙️ Settings clicked from tray menu");
+                    if let Err(e) = show_settings_window(app) {
+                        println!("❌ Failed to show settings window: {}", e);
+                    }
+                }
+                "start_backend" => {
+                    println!("🐍 Start backend clicked from tray menu");
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = start_backend().await {
+                            println!("❌ Failed to start backend: {}", e);
+                        }
+                    });
+                }
+                "test_recording" => {
+                    println!("🎤 Test recording clicked from tray menu");
+                    // We'll need to access state here properly later
+                }
+                "quit" => {
+                    println!("🚪 Quit clicked from tray menu");
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|tray, event| {
+            match event {
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    println!("🖱️ Tray icon left clicked");
+                    let app = tray.app_handle();
+                    if let Err(e) = show_settings_window(app) {
+                        println!("❌ Failed to show settings window: {}", e);
+                    }
+                }
+                TrayIconEvent::DoubleClick { .. } => {
+                    println!("🖱️ Tray icon double clicked");
+                    let app = tray.app_handle();
+                    if let Err(e) = show_settings_window(app) {
+                        println!("❌ Failed to show settings window: {}", e);
+                    }
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    println!("✅ System tray created successfully");
+    Ok(())
+}
+
+// Show settings window
+fn show_settings_window(app: &AppHandle) -> Result<(), String> {
+    println!("🪟 show_settings_window called");
+    
+    // Try to get the main window first
+    if let Some(main_window) = app.get_webview_window("main") {
+        println!("✅ Found main window, showing it");
+        main_window.show().map_err(|e| format!("Failed to show main window: {}", e))?;
+        main_window.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+        return Ok(());
+    }
+    
+    // Check if dedicated settings window already exists
+    if let Some(settings_window) = app.get_webview_window("settings") {
+        println!("✅ Found existing settings window, showing it");
+        settings_window.show().map_err(|e| format!("Failed to show existing settings window: {}", e))?;
+        settings_window.set_focus().map_err(|e| format!("Failed to focus settings window: {}", e))?;
+        return Ok(());
+    }
+
+    // Create new settings window
+    println!("🆕 Creating new settings window");
+    let settings_window = tauri::WebviewWindowBuilder::new(
+        app,
+        "settings",
+        tauri::WebviewUrl::App("/tray".into())
+    )
+    .title("Cursper Settings")
+    .inner_size(450.0, 600.0)
+    .resizable(false)
+    .center()
+    .always_on_top(false)
+    .skip_taskbar(false)
+    .build()
+    .map_err(|e| format!("Failed to create settings window: {}", e))?;
+
+    settings_window.show().map_err(|e| format!("Failed to show new settings window: {}", e))?;
+    println!("✅ Settings window created and shown");
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     println!("🚀 CURSPER TAURI APP STARTING");
@@ -973,10 +1098,20 @@ pub fn run() {
             start_backend,
             toggle_recording,
             update_global_shortcut,
-            test_global_shortcut_system
+            test_global_shortcut_system,
+            open_settings
         ])
         .setup(move |app| {
             println!("⚙️ TAURI SETUP STARTING");
+            
+            // Setup system tray first
+            println!("🖱️ Setting up system tray...");
+            if let Err(e) = setup_system_tray(app.handle()) {
+                eprintln!("❌ Failed to setup system tray: {}", e);
+                // Don't fail the entire app if tray setup fails
+            } else {
+                println!("✅ System tray setup completed");
+            }
             
             // Test global shortcut system first
             println!("🧪 Testing global shortcut system...");

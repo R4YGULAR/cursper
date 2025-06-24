@@ -61,22 +61,25 @@
   .microphone-icon {
     width: 24px;
     height: 24px;
-    background: rgba(59, 130, 246, 0.9);
+    background: rgba(26, 26, 26, 0.95);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: #3b82f6;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(16px);
+    border: 2px solid rgba(59, 130, 246, 0.3);
     transition: all 0.3s ease;
     position: relative;
   }
 
   .microphone-icon.recording {
-    background: rgba(239, 68, 68, 0.9);
+    background: rgba(239, 68, 68, 0.95);
+    color: #ffffff;
+    border-color: rgba(239, 68, 68, 0.5);
     animation: recordingPulse 1s ease-in-out infinite alternate;
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
   }
 
   .recording-indicator {
@@ -94,7 +97,7 @@
     transform: translate(-50%, -50%);
     width: 40px;
     height: 40px;
-    border: 2px solid rgba(239, 68, 68, 0.4);
+    border: 2px solid rgba(239, 68, 68, 0.6);
     border-radius: 50%;
     animation: pulseRing 2s ease-out infinite;
   }
@@ -106,11 +109,11 @@
   @keyframes recordingPulse {
     0% {
       transform: scale(1);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
     }
     100% {
       transform: scale(1.1);
-      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+      box-shadow: 0 6px 24px rgba(239, 68, 68, 0.5);
     }
   }
 
@@ -121,7 +124,7 @@
     }
     100% {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(2);
+      transform: translate(-50%, -50%) scale(2.2);
     }
   }
 
